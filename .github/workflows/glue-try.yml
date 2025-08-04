@@ -27,12 +27,15 @@ jobs:
         BUCKET_NAME=glue-pipeline-run-$(date +%s)
         echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
-    - name: Create new S3 bucket
+    - name: Create a unique bucket
+      id: createbucket
       run: |
+        BUCKET="glue-output-bucket-$(date +%s)"
+        echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
         aws s3api create-bucket \
-          --bucket ${{ steps.bucket.outputs.bucket_name }} \
-          --region us-east-1 \
-          --create-bucket-configuration LocationConstraint=us-east-1
+          --bucket $BUCKET \
+          --region us-east-1
+
 
     - name: Copy raw file to new bucket
       run: |
