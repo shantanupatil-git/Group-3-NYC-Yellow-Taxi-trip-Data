@@ -51,12 +51,12 @@ jobs:
           s3://${{ steps.bucket.outputs.bucket_name }}/raw/
     
     # Step 5: Trigger Glue ETL job
-    - name: Trigger AWS Glue Job
+    - name: Trigger Glue ETL job
       run: |
         aws glue start-job-run \
-          --job-name your-glue-job-name \
+          --job-name firstjob \
           --arguments '{
-            "--JOB_NAME": "your-glue-job-name",
+            "--JOB_NAME": "firstjob",
             "--SOURCE_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/raw/",
             "--TARGET_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/cleaned/"
           }'
