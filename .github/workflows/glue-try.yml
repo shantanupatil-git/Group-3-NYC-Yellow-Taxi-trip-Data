@@ -21,29 +21,37 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
-    - name: Generate new bucket name
+    # Step 1: Generate a unique bucket name
+    - name: Generate bucket name
       id: bucket
       run: |
-        BUCKET_NAME=glue-pipeline-run-$(date +%s)
+        BUCKET_NAME="glue-pipeline-run-$(date +%s)"
         echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
-    - name: Create a unique bucket
-      id: createbucket
+    # Step 2: Create the bucket
+    - name: Create S3 bucket
       run: |
-        BUCKET="glue-output-bucket-$(date +%s)"
-        echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
         aws s3api create-bucket \
-          --bucket $BUCKET \
+          --bucket ${{ steps.bucket.outputs.bucket_name }} \
           --region us-east-1
+      env:
+        AWS_DEFAULT_REGION: us-east-1
 
+    # Step 3: Wait for bucket to exist
+    - name: Wait until bucket exists
+      run: |
+        aws s3api wait bucket-exists \
+          --bucket ${{ steps.bucket.outputs.bucket_name }}
 
+    # Step 4: Copy raw data into the new bucket
     - name: Copy raw file to new bucket
       run: |
         aws s3 cp \
           s3://opbkt-glue/processed-output/part-00000-6f965bd1-e78e-43fe-8ef0-a06bf2142f33-c000.snappy.parquet \
           s3://${{ steps.bucket.outputs.bucket_name }}/raw/
-
-    - name: Trigger Glue ETL job
+    
+    # Step 5: Trigger Glue ETL job
+    - name: Trigger AWS Glue Job
       run: |
         aws glue start-job-run \
           --job-name your-glue-job-name \
