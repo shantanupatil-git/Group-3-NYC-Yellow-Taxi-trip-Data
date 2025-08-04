@@ -28,7 +28,7 @@ jobs:
         BUCKET_NAME="glue-pipeline-run-$(date +%s)"
         echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
 
-    # Step 2: Create the bucket
+    # Step 2: Create the bucket 
     - name: Create S3 bucket
       run: |
         aws s3api create-bucket \
