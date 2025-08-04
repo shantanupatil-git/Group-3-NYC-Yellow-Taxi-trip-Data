@@ -1,0 +1,50 @@
+name: Glue CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  run-glue-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Generate new bucket name
+      id: bucket
+      run: |
+        BUCKET_NAME=glue-pipeline-run-$(date +%s)
+        echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+    - name: Create new S3 bucket
+      run: |
+        aws s3api create-bucket \
+          --bucket ${{ steps.bucket.outputs.bucket_name }} \
+          --region us-east-1 \
+          --create-bucket-configuration LocationConstraint=us-east-1
+
+    - name: Copy raw file to new bucket
+      run: |
+        aws s3 cp \
+          s3://opbkt-glue/processed-output/part-00000-6f965bd1-e78e-43fe-8ef0-a06bf2142f33-c000.snappy.parquet \
+          s3://${{ steps.bucket.outputs.bucket_name }}/raw/
+
+    - name: Trigger Glue ETL job
+      run: |
+        aws glue start-job-run \
+          --job-name your-glue-job-name \
+          --arguments '{
+            "--JOB_NAME": "your-glue-job-name",
+            "--SOURCE_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/raw/",
+            "--TARGET_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/cleaned/"
+          }'
