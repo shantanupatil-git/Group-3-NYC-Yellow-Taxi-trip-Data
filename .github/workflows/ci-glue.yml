@@ -1,0 +1,42 @@
+name: Glue CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - etl_script.py
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      RAW_BUCKET: your-raw-bucket-name
+      CLEAN_BUCKET: cleaned-data-${{ github.run_id }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Create cleaned data bucket
+        run: |
+          aws s3 mb s3://${{ env.CLEAN_BUCKET }}
+          echo "Created bucket: ${{ env.CLEAN_BUCKET }}"
+
+      - name: Upload Glue script to S3
+        run: |
+          aws s3 cp etl_script.py s3://${{ env.RAW_BUCKET }}/glue/etl_script.py
+
+      - name: Start AWS Glue Job
+        run: |
+          aws glue start-job-run \
+            --job-name your-glue-job-name \
+            --arguments='--RAW_BUCKET=${{ env.RAW_BUCKET }},--CLEAN_BUCKET=${{ env.CLEAN_BUCKET }}'
