@@ -33,7 +33,7 @@ jobs:
     - name: Wait for Glue Job to finish
       run: |
         echo "Waiting for Glue job to finish..."
-        # Optional: implement polling logic if needed
+        # Optional: implement polling logic if needed 
 
     - name: Trigger Glue Crawler
       run: |
