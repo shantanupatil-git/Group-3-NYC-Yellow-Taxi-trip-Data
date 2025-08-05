@@ -1,67 +1,42 @@
-# main.tf
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
-# Create S3 buckets (if not already created)
-resource "aws_s3_bucket" "source_bucket" {
-  bucket = "opbkt-glue"
-  force_destroy = true
+resource "aws_glue_catalog_database" "this" {
+  name = var.glue_db_name
 }
 
-resource "aws_s3_bucket" "target_bucket" {
-  bucket = "gpbkt"
-  force_destroy = true
-}
-
-# Upload the ETL script to source bucket
-resource "aws_s3_object" "etl_script" {
-  bucket = aws_s3_bucket.source_bucket.bucket
-  key    = "scripts/etl-glue-script.py"
-  source = "../etl-glue-script.py"  # Must exist locally before running `terraform apply`
-  etag   = filemd5("../etl-glue-script.py")
-}
-
-# Glue database
-resource "aws_glue_catalog_database" "nyc_db" {
-  name = "nyc-yellow-taxi-trip-data"
-}
-
-# Glue job
-resource "aws_glue_job" "firstjob" {
-  name     = "firstjob"
-  role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/labrole"
+resource "aws_glue_job" "this" {
+  name     = var.glue_job_name
+  role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
 
   command {
     name            = "glueetl"
-    script_location = "s3://${aws_s3_bucket.source_bucket.bucket}/${aws_s3_object.etl_script.key}"
+    script_location = "s3://${var.raw_bucket_name}/${var.etl_script_s3_key}"
     python_version  = "3"
   }
 
   default_arguments = {
-    "--job-language"         = "python"
-    "--SOURCE_PATH"          = "s3://${aws_s3_bucket.source_bucket.bucket}/processed-output/"
-    "--TARGET_PATH"          = "s3://${aws_s3_bucket.target_bucket.bucket}/cleaned/"
-    "--enable-continuous-cloudwatch-log" = "true"
-    "--enable-glue-datacatalog"         = "true"
+    "--job-language" = "python"
+    "--SOURCE_PATH"  = "s3://${var.raw_bucket_name}/processed-output/"
+    "--TARGET_PATH"  = "s3://${var.cleaned_bucket_name}/cleaned/"
   }
 
-  glue_version     = "4.0"
+  glue_version = "4.0"
   number_of_workers = 2
-  worker_type      = "G.1X"
+  worker_type       = "G.1X"
 }
 
-# Glue crawler
-resource "aws_glue_crawler" "nyc_crawler" {
-  name         = "nyc-crawler"
-  role         = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/labrole"
-  database_name = aws_glue_catalog_database.nyc_db.name
+resource "aws_glue_crawler" "this" {
+  name         = var.glue_crawler_name
+  role         = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
+  database_name = aws_glue_catalog_database.this.name
 
   s3_target {
-    path = "s3://${aws_s3_bucket.target_bucket.bucket}/cleaned/"
+    path = "s3://${var.cleaned_bucket_name}/cleaned/"
   }
 
-  depends_on = [aws_glue_job.firstjob]
+  depends_on = [aws_glue_job.this]
 }
 
 data "aws_caller_identity" "current" {}
