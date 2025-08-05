@@ -30,7 +30,7 @@ master_dyf = glueContext.create_dynamic_frame.from_options(
 # Load zone lookup from fixed location
 zone_dyf = glueContext.create_dynamic_frame.from_options(
     connection_type="s3",
-    connection_options={"paths": ["s3://nycfinalp/taxi_zone_lookup.csv"]},
+    connection_options={"paths": ["s3://gpbkt/taxi_zone_lookup.csv"]},
     format="csv",
     format_options={"withHeader": True}
 )
