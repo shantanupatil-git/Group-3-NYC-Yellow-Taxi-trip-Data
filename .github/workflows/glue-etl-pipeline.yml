@@ -1,0 +1,62 @@
+name: Glue ETL Pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  terraform-glue:
+    runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_source_bucket_name: opbkt-glue
+      TF_VAR_target_bucket_name: gpbkt
+      TF_VAR_glue_database_name: nyc-yellow-taxi-trip-data
+      TF_VAR_glue_job_name: firstjob
+      TF_VAR_glue_crawler_name: nyc-crawler
+      TF_VAR_script_s3_key: scripts/etl-glue-script.py
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.8.2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1
+
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ./terraform
+
+    - name: Terraform Plan
+      run: terraform plan
+      working-directory: ./terraform
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+      working-directory: ./terraform
+
+    - name: Start Glue ETL Job
+      run: |
+        echo "Triggering Glue job..."
+        aws glue start-job-run \
+          --job-name firstjob \
+          --arguments '{
+            "--JOB_NAME": "firstjob",
+            "--SOURCE_PATH": "s3://opbkt-glue/processed-output/",
+            "--TARGET_PATH": "s3://gpbkt/cleaned/"
+          }'
+
+    - name: Start Glue Crawler
+      run: |
+        echo "Triggering Glue crawler..."
+        aws glue start-crawler --name nyc-crawler
