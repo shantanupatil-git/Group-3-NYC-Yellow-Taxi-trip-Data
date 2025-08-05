@@ -1,12 +1,11 @@
-name: Glue CI/CD Pipeline
+name: Glue ETL Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  run-glue-pipeline:
+  etl-job:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,42 +20,21 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: us-east-1
 
-    # Step 1: Generate a unique bucket name
-    - name: Generate bucket name
-      id: bucket
-      run: |
-        BUCKET_NAME="glue-pipeline-run-$(date +%s)"
-        echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-
-    # Step 2: Create the bucket  
-    - name: Create S3 bucket
-      run: |
-        aws s3api create-bucket \
-          --bucket ${{ steps.bucket.outputs.bucket_name }} \
-          --region us-east-1
-      env:
-        AWS_DEFAULT_REGION: us-east-1
-
-    # Step 3: Wait for bucket to exist
-    - name: Wait until bucket exists
-      run: |
-        aws s3api wait bucket-exists \
-          --bucket ${{ steps.bucket.outputs.bucket_name }}
-
-    # Step 4: Copy raw data into the new bucket
-    - name: Copy raw file to new bucket
-      run: |
-        aws s3 cp \
-          s3://opbkt-glue/processed-output/part-00000-6f965bd1-e78e-43fe-8ef0-a06bf2142f33-c000.snappy.parquet \
-          s3://${{ steps.bucket.outputs.bucket_name }}/raw/
-    
-    # Step 5: Trigger Glue ETL job
-    - name: Trigger Glue ETL job
+    - name: Trigger Glue ETL Job
       run: |
         aws glue start-job-run \
           --job-name firstjob \
           --arguments '{
             "--JOB_NAME": "firstjob",
-            "--SOURCE_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/raw/",
-            "--TARGET_PATH": "s3://${{ steps.bucket.outputs.bucket_name }}/cleaned/"
+            "--SOURCE_PATH": "s3://opbkt-glue/processed-output/",
+            "--TARGET_PATH": "s3://gpbkt/cleaned/"
           }'
+
+    - name: Wait for Glue Job to finish
+      run: |
+        echo "Waiting for Glue job to finish..."
+        # Optional: implement polling logic if needed
+
+    - name: Trigger Glue Crawler
+      run: |
+        aws glue start-crawler --name nyc-crawler
