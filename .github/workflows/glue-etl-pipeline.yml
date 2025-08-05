@@ -53,7 +53,7 @@ jobs:
           --arguments '{
             "--JOB_NAME": "firstjob",
             "--SOURCE_PATH": "s3://opbkt-glue/processed-output/",
-            "--TARGET_PATH": "s3://gpbkt/cleaned/"
+            "--TARGET_PATH": "s3://gpbktt/cleaned/"
           }'
 
     - name: Start Glue Crawler
