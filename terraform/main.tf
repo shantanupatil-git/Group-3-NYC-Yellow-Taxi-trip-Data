@@ -8,7 +8,7 @@ resource "aws_glue_catalog_database" "this" {
 
 resource "aws_glue_job" "this" {
   name     = var.glue_job_name
-  role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
+  role_arn = "arn:aws:iam::298417083584:role/LabRole"
 
   command {
     name            = "glueetl"
@@ -29,7 +29,7 @@ resource "aws_glue_job" "this" {
 
 resource "aws_glue_crawler" "this" {
   name         = var.glue_crawler_name
-  role         = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
+  role         = "arn:aws:iam::298417083584:role/LabRole"
   database_name = aws_glue_catalog_database.this.name
 
   s3_target {
