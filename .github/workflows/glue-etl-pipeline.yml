@@ -2,7 +2,7 @@ name: Deploy Glue ETL Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [Gyandeep]
 
 jobs:
   deploy:
