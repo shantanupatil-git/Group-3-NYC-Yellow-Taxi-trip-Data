@@ -1,50 +1,87 @@
-name: Deploy Glue ETL Pipeline
+name: Terraform + ETL Automation
 
 on:
   push:
-    branches: [pranav_CI/CD]
+    branches:
+      - Gyan
+
+env:
+  AWS_REGION: us-east-1
+  SCRIPT_PATH: etl/etl-glue-script.py
+  S3_BUCKET: third-glue-bkt-grp-three-nyc
+  ETL_JOB_NAME: glue-etl-job
+  CRAWLER_NAME: my-etl-crawler
 
 jobs:
-  deploy:
+  infra-deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-        aws-region: us-east-1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: Terraform Init
-      run: terraform init
-      working-directory: terraform
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init
 
-    - name: Terraform Plan
-      run: terraform plan
-      working-directory: terraform
+      - name: Terraform Validate
+        working-directory: infra
+        run: terraform validate
 
-    - name: Terraform Apply
-      run: terraform apply -auto-approve
-      working-directory: terraform
+      - name: Terraform Apply
+        working-directory: infra
+        run: terraform apply -auto-approve
 
-    - name: Start Glue Job
-      run: |
-        aws glue start-job-run \
-          --job-name firstjob \
-          --arguments '{
-            "--JOB_NAME": "firstjob",
-            "--SOURCE_PATH": "s3://opbkt-glue/processed-output/",
-            "--TARGET_PATH": "s3://gpbkttt/cleaned/"
-          }'
+  run-etl:
+    needs: infra-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Start Glue Crawler
-      run: |
-        aws glue start-crawler --name nyc-crawler
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload ETL Script to S3
+        run: |
+          aws s3 cp ${{ env.SCRIPT_PATH }} s3://${{ env.S3_BUCKET }}/scripts/etl-glue-script.py
+          echo "ETL script uploaded to S3."
+      - name: Start Glue ETL Job
+        id: start_etl
+        run: |
+          JOB_RUN_ID=$(aws glue start-job-run --job-name ${{ env.ETL_JOB_NAME }} --query 'JobRunId' --output text)
+          echo "ETL JobRunId: $JOB_RUN_ID"
+          echo "job_run_id=$JOB_RUN_ID" >> $GITHUB_OUTPUT
+      - name: Wait for ETL Job Completion
+        run: |
+          JOB_RUN_ID=${{ steps.start_etl.outputs.job_run_id }}
+          while true; do
+            STATUS=$(aws glue get-job-run --job-name ${{ env.ETL_JOB_NAME }} --run-id "$JOB_RUN_ID" --query 'JobRun.JobRunState' --output text)
+            echo "Current ETL job status: $STATUS"
+            if [ "$STATUS" == "SUCCEEDED" ]; then
+              echo "ETL Job completed successfully."
+              break
+            elif [ "$STATUS" == "FAILED" ] || [ "$STATUS" == "STOPPED" ]; then
+              echo "ETL Job failed or stopped."
+              exit 1
+            fi
+            sleep 30
+          done
+      - name: Start Glue Crawler
+        run: aws glue start-crawler --name ${{ env.CRAWLER_NAME }}
+#rjevejvnfdljjnijjew
